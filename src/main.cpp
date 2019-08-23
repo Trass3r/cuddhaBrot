@@ -109,7 +109,7 @@ static void createGLTextureForCUDA(GLuint* gl_tex, cudaGraphicsResource** cuda_t
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	// Specify 2D texture
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8UI_EXT, size_x, size_y, 0, GL_RGBA_INTEGER_EXT, GL_UNSIGNED_BYTE, NULL);
+	glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA32UI, size_x, size_y);
 	// Register this texture with CUDA
 	checkCudaErrors(cudaGraphicsGLRegisterImage(cuda_tex, *gl_tex, GL_TEXTURE_2D, cudaGraphicsRegisterFlagsWriteDiscard));
 }
@@ -242,7 +242,7 @@ static void initCUDABuffers()
 	// set up vertex data parameters
 	num_texels = WIDTH * HEIGHT;
 	num_values = num_texels * 4;
-	size_tex_data = sizeof(GLubyte) * num_values;
+	size_tex_data = sizeof(GLuint) * num_values;
 	// We don't want to use cudaMallocManaged here - since we definitely want
 	checkCudaErrors(cudaMalloc(&cuda_dev_render_buffer, size_tex_data)); // Allocate CUDA memory for color output
 }
@@ -256,7 +256,7 @@ static bool initGLFW()
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-	g_window = glfwCreateWindow(WIDTH, WIDTH, "SimpleCUDA2GL Modern OpenGL", nullptr, nullptr);
+	g_window = glfwCreateWindow(WIDTH, WIDTH, " CUDA Buddhabrot", nullptr, nullptr);
 	if (!g_window) { glfwTerminate(); exit(EXIT_FAILURE); }
 	glfwMakeContextCurrent(g_window);
 	glfwSwapInterval(1);

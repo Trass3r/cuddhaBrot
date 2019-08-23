@@ -107,7 +107,6 @@ static void createGLTextureForCUDA(GLuint* gl_tex, cudaGraphicsResource** cuda_t
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8UI_EXT, size_x, size_y, 0, GL_RGBA_INTEGER_EXT, GL_UNSIGNED_BYTE, NULL);
 	// Register this texture with CUDA
 	checkCudaErrors(cudaGraphicsGLRegisterImage(cuda_tex, *gl_tex, GL_TEXTURE_2D, cudaGraphicsRegisterFlagsWriteDiscard));
-	SDK_CHECK_ERROR_GL();
 }
 
 static void initGLBuffers()
@@ -119,12 +118,97 @@ static void initGLBuffers()
 	drawtex_f = GLSLShader("fullscreen quad fragment shader", glsl_drawtex_fragshader_src, GL_FRAGMENT_SHADER);
 	shdrawtex = GLSLProgram(&drawtex_v, &drawtex_f);
 	shdrawtex.compile();
-	SDK_CHECK_ERROR_GL();
 }
 
 // Keyboard
 static void keyboardfunc(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
+}
+
+static void APIENTRY glCallback(GLenum source, GLenum type, GLuint id, GLenum severity,
+	GLsizei length, const GLchar* msg, const void* data)
+{
+	const char* sourceStr = "UNKNOWN";
+	const char* typeStr = "UNKNOWN";
+	const char* severityStr = "UNKNOWN";
+
+	switch (source)
+	{
+	case GL_DEBUG_SOURCE_API:
+		sourceStr = "API";
+		break;
+
+	case GL_DEBUG_SOURCE_WINDOW_SYSTEM:
+		sourceStr = "WINDOW SYSTEM";
+		break;
+
+	case GL_DEBUG_SOURCE_SHADER_COMPILER:
+		sourceStr = "SHADER COMPILER";
+		break;
+
+	case GL_DEBUG_SOURCE_THIRD_PARTY:
+		sourceStr = "THIRD PARTY";
+		break;
+
+	case GL_DEBUG_SOURCE_APPLICATION:
+		sourceStr = "APPLICATION";
+		break;
+	}
+
+	switch (type)
+	{
+	case GL_DEBUG_TYPE_ERROR:
+		typeStr = "ERROR";
+		break;
+
+	case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR:
+		typeStr = "DEPRECATED";
+		break;
+
+	case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
+		typeStr = "UNDEFINED";
+		break;
+
+	case GL_DEBUG_TYPE_PORTABILITY:
+		typeStr = "PORTABILITY";
+		break;
+
+	case GL_DEBUG_TYPE_PERFORMANCE:
+		typeStr = "PERFORMANCE";
+		break;
+
+	case GL_DEBUG_TYPE_OTHER:
+		typeStr = "OTHER";
+		break;
+
+	case GL_DEBUG_TYPE_MARKER:
+		typeStr = "MARKER";
+		break;
+	}
+
+	switch (severity)
+	{
+	case GL_DEBUG_SEVERITY_HIGH:
+		severityStr = "HIGH";
+		break;
+
+	case GL_DEBUG_SEVERITY_MEDIUM:
+		severityStr = "MEDIUM";
+		break;
+
+	case GL_DEBUG_SEVERITY_LOW:
+		severityStr = "LOW";
+		break;
+
+	case GL_DEBUG_SEVERITY_NOTIFICATION:
+		severityStr = "NOTIFICATION";
+		break;
+	}
+
+	printf("[%s] %s: [%s] %d: %s\n",
+		severityStr, typeStr, sourceStr, id, msg);
+	if (type == GL_DEBUG_TYPE_ERROR || severity == GL_DEBUG_SEVERITY_HIGH)
+		glfwSetWindowShouldClose(g_window, true);
 }
 
 static bool initGL()
@@ -136,8 +220,9 @@ static bool initGL()
 		printf("glewInit failed: %s /n", glewGetErrorString(err));
 		exit(1);
 	}
+	glEnable(GL_DEBUG_OUTPUT);
+	glDebugMessageCallback(glCallback, nullptr);
 	glViewport(0, 0, WIDTH, HEIGHT); // viewport for x,y to normalized device coordinates transformation
-	SDK_CHECK_ERROR_GL();
 	return true;
 }
 
@@ -203,8 +288,6 @@ static void display()
 	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 	glBindVertexArray(0); // unbind VAO
 
-	SDK_CHECK_ERROR_GL();
-	
 	// Swap the screen buffers
 	glfwSwapBuffers(g_window);
 }

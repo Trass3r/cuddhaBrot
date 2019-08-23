@@ -47,29 +47,38 @@ size_t size_tex_data;
 unsigned int num_texels;
 unsigned int num_values;
 
+#define FULLSCREENTRIANGLE 1
+#if FULLSCREENTRIANGLE
 const char* const glsl_drawtex_vertshader_src = R"(
-#version 330 core
+#version 460 core
+vec3 position = vec3(vec2(gl_VertexID % 2, gl_VertexID / 2) * 4.0 - 1, 0);
+vec2 texCoord = (position.xy + 1) * 0.5;
+)"
+#else
+const char* const glsl_drawtex_vertshader_src = R"(
+#version 460 core
 layout (location = 0) in vec3 position;
-layout (location = 1) in vec3 color;
-layout (location = 2) in vec2 texCoord;
-
-out vec3 ourColor;
-out vec2 ourTexCoord;
+layout (location = 1) in vec2 texCoord;
+)"
+#endif
+R"(
+layout(location = 0) out vec2 ourTexCoord;
 
 void main()
 {
 	gl_Position = vec4(position, 1.0f);
-	ourColor = color;
 	ourTexCoord = texCoord;
 }
 )";
 
 const char* const glsl_drawtex_fragshader_src = R"(
-#version 330 core
-uniform usampler2D tex;
-in vec3 ourColor;
-in vec2 ourTexCoord;
-out vec4 color;
+#version 460 core
+
+layout(location = 0) in vec2 ourTexCoord;
+layout(location = 0) out vec4 color;
+
+layout(location = 0) uniform usampler2D tex;
+
 void main()
 {
 	vec4 c = texture(tex, ourTexCoord);
@@ -282,10 +291,14 @@ static void display()
 	glBindTexture(GL_TEXTURE_2D, opengl_tex_cuda);
 
 	shdrawtex.use();
-	glUniform1i(glGetUniformLocation(shdrawtex.program, "tex"), 0);
 
 	glBindVertexArray(VAO); // binding VAO automatically binds EBO
+#if FULLSCREENTRIANGLE
+	// dummy VAO still required in core profile
+	glDrawArrays(GL_TRIANGLES, 0, 3);
+#else
 	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+#endif
 	glBindVertexArray(0); // unbind VAO
 
 	// Swap the screen buffers
@@ -307,13 +320,14 @@ int main(int argc, char* argv[])
 
 	// Generate buffers
 	glGenVertexArrays(1, &VAO);
-	glGenBuffers(1, &VBO);
-	glGenBuffers(1, &EBO);
 
 	// Buffer setup
 	// Bind the Vertex Array Object first, then bind and set vertex buffer(s) and attribute pointer(s).
 	glBindVertexArray(VAO); // all next calls wil use this VAO (descriptor for VBO)
 
+#if !FULLSCREENTRIANGLE
+	glGenBuffers(1, &VBO);
+	glGenBuffers(1, &EBO);
 	glBindBuffer(GL_ARRAY_BUFFER, VBO);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
@@ -330,6 +344,7 @@ int main(int argc, char* argv[])
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	// Note that this is allowed, the call to glVertexAttribPointer registered VBO as the currently bound 
 	// vertex buffer object so afterwards we can safely unbind
+#endif
 	glBindVertexArray(0);
 
 	// Unbind VAO (it's always a good thing to unbind any buffer/array to prevent strange bugs), remember: do NOT unbind the EBO, keep it bound to this VAO

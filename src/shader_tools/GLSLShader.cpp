@@ -1,15 +1,12 @@
 #include "GLSLShader.h"
 
-GLSLShader::GLSLShader() :
-	shader(0), compiled(false), shadertype(0), shader_name(""), shader_src("") {
-}
-
 GLSLShader::GLSLShader(const std::string &shader_name, const char *shader_text, GLenum shadertype) :
-	shader(0), compiled(false), shadertype(shadertype), shader_name(shader_name), shader_src(std::string(shader_text)) {
+	shadertype(shadertype), shader_name(shader_name), shader_src(std::string(shader_text))
+{
 }
 
 GLSLShader::GLSLShader(const std::string &shader_name, const std::string &shader_text, GLenum shadertype) :
-	shader(0), compiled(false), shadertype(shadertype), shader_name(shader_name), shader_src(shader_text) {
+	shadertype(shadertype), shader_name(shader_name), shader_src(shader_text) {
 }
 
 std::string GLSLShader::getSrc() const {
@@ -26,7 +23,8 @@ void GLSLShader::setSrc(const char* new_source) {
 	compiled = false; // setting new source forces recompile
 }
 
-void GLSLShader::compile() {
+void GLSLShader::compile()
+{
 	printf("(S) Compiling shader \"%s\" ... ", this->shader_name.c_str());
 	shader = glCreateShader(shadertype);
 	glShaderSource(shader, 1, ShaderStringHelper(shader_src), NULL);

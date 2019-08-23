@@ -1,4 +1,4 @@
-#include "cuda_runtime.h"
+#include <cuda_runtime.h>
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -33,12 +33,8 @@ cudaRender(unsigned int *g_odata, int imgw)
 {
 	extern __shared__ uchar4 sdata[];
 
-	int tx = threadIdx.x;
-	int ty = threadIdx.y;
-	int bw = blockDim.x;
-	int bh = blockDim.y;
-	int x = blockIdx.x*bw + tx;
-	int y = blockIdx.y*bh + ty;
+	int x = blockIdx.x * blockDim.x + threadIdx.x;
+	int y = blockIdx.y * blockDim.y + threadIdx.y;
 
 	uchar4 c4 = make_uchar4((x & 0x20) ? 100 : 0, 0, (y & 0x20) ? 100 : 0, 0);
 	g_odata[y*imgw + x] = rgbToInt(c4.z, c4.y, c4.x);
@@ -47,5 +43,5 @@ cudaRender(unsigned int *g_odata, int imgw)
 extern "C" void
 launch_cudaRender(dim3 grid, dim3 block, int sbytes, unsigned int *g_odata, int imgw)
 {
-	cudaRender << < grid, block, sbytes >> >(g_odata, imgw);
+	cudaRender <<< grid, block, sbytes >>>(g_odata, imgw);
 }

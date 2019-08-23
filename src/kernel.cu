@@ -1,12 +1,11 @@
+#include "libs/helper_cuda.h"
+
 #include <cuda_runtime.h>
+#include <curand_kernel.h>
+
+#include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
-
-cudaError_t cuda();
-
-__global__ void kernel(){
-  
-}
 
 // clamp x to range [a, b]
 __device__ float clamp(float x, float a, float b)
@@ -19,29 +18,106 @@ __device__ int clamp(int x, int a, int b)
 	return max(a, min(b, x));
 }
 
-// convert floating point rgb color to 8-bit integer
-__device__ int rgbToInt(float r, float g, float b)
+__global__ void randInit(curandState* state, uint64_t seed)
 {
-	r = clamp(r, 0.0f, 255.0f);
-	g = clamp(g, 0.0f, 255.0f);
-	b = clamp(b, 0.0f, 255.0f);
-	return (int(b) << 16) | (int(g) << 8) | int(r);
+	int tid = threadIdx.x + blockIdx.x * blockDim.x;
+	curand_init(seed, tid, 0, &state[tid]);
 }
 
+template <typename T>
+__device__ bool inMainCardioid(T real, T imag)
+{
+	T imag_squared = imag * imag;
+	T q = real - T(0.25);
+	q = q * q + imag_squared;
+	return q * (q + (real - T(0.25))) < (imag_squared * T(0.25));
+}
+
+template <typename T>
+__device__ bool inOrder2Bulb(T real, T imag)
+{
+	++real;
+	real = real * real;
+	return (real + imag * imag) < T(1.0 / 16);
+}
+
+template<class T>
+__device__ inline uint32_t CalcMandelbrot(T xPos, T yPos, uint32_t maxIter)
+{
+	T x = 0, y = 0, xx = 0, yy = 0;
+	uint32_t i = 0;
+	while (i++ < maxIter && (xx + yy < T(4.0)))
+	{
+		y = x * y * T(2.0) + yPos;
+		x = xx - yy + xPos;
+		yy = y * y;
+		xx = x * x;
+	}
+
+	return i;
+}
+
+template<typename T, unsigned numChannels = 4>
 __global__ void
-cudaRender(unsigned int *g_odata, int imgw)
+Buddhabrot(uint32_t* dst, int imageW, int imageH, uint32_t maxIter,
+	T xOff, T yOff, T scale, curandState* randStates)
 {
-	extern __shared__ uchar4 sdata[];
+	int tid = threadIdx.x + blockIdx.x * blockDim.x;
 
-	int x = blockIdx.x * blockDim.x + threadIdx.x;
-	int y = blockIdx.y * blockDim.y + threadIdx.y;
+	curandState localState = randStates[tid];
+	for (uint32_t i = 0; i < 64; ++i)
+	{
+		float x = curand_uniform(&localState);
+		float y = curand_uniform(&localState);
+		const T xPos = x * imageW * scale + xOff;
+		const T yPos = y * imageH * scale + yOff;
 
-	uchar4 c4 = make_uchar4((x & 0x20) ? 100 : 0, 0, (y & 0x20) ? 100 : 0, 0);
-	g_odata[y*imgw + x] = rgbToInt(c4.z, c4.y, c4.x);
+		if (inMainCardioid(xPos, yPos) || inOrder2Bulb(xPos, yPos))
+			continue;
+
+		int m = CalcMandelbrot<T>(xPos, yPos, maxIter);
+		//m = blockIdx.x;         // uncomment to see scheduling order
+
+		// we converged, skip that
+		if (m < 10)
+			continue;
+
+		uint32_t channel = 0;
+		if (numChannels > 1 && m > 5000)
+			channel = 1;
+		if (numChannels > 2 && m > 10000)
+			channel = 2;
+
+		x = 0, y = 0;
+		for (int j = 0; j < m; ++j)
+		{
+			float yy = y * y;
+			y = x * y * 2 + yPos;
+			x = x * x - yy + xPos; // inline yy to get the Kleeblatt
+
+			uint32_t ix = uint32_t((x - xOff) / scale);
+			uint32_t iy = uint32_t((y - yOff) / scale);
+			if (!ix || !iy || // cast negative float to uint is 0 probably, so skip those
+				ix >= imageW || iy >= imageH)
+				continue;
+			uint32_t idx = (iy * imageW + ix) * numChannels + channel;
+			atomicAdd(&dst[idx], 1);
+		}
+	}
+	randStates[tid] = localState;
 }
 
-extern "C" void
-launch_cudaRender(dim3 grid, dim3 block, int sbytes, unsigned int *g_odata, int imgw)
+void RunRandInit(curandState* state, size_t len, uint64_t seed)
 {
-	cudaRender <<< grid, block, sbytes >>>(g_odata, imgw);
+	randInit <<<len / 256, 256>>> (state, seed);
+	getLastCudaError("randInit kernel execution failed.\n");
+}
+
+void RunBuddhabrot(uint32_t* dst, int imageW, int imageH, double xOff, double yOff, double scale, int numSMs, curandState* randStates)
+{
+	uint32_t maxIter = 8192*2;
+	Buddhabrot<float> <<<16 * numSMs, 256>>> (dst, imageW, imageH, maxIter, (float)xOff, (float)yOff,
+		(float)scale, randStates);
+
+	getLastCudaError("Buddhabrot kernel execution failed.\n");
 }

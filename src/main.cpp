@@ -5,6 +5,7 @@
 #include <GLFW/glfw3.h>
 
 #include <cuda_runtime.h>
+#include <curand_kernel.h>
 #include <cuda_gl_interop.h>
 #include "libs/helper_cuda.h"
 #include "libs/helper_cuda_gl.h"
@@ -33,9 +34,6 @@ GLSLProgram shdrawtex; // GLSLS program for textured draw
 void* cuda_dev_render_buffer; // Cuda buffer for initial render
 struct cudaGraphicsResource* cuda_tex_resource;
 GLuint opengl_tex_cuda;  // OpenGL Texture for cuda result
-extern "C" void
-// Forward declaration of CUDA render
-launch_cudaRender(dim3 grid, dim3 block, int sbytes, unsigned int *g_odata, int imgw);
 
 // CUDA
 size_t size_tex_data;
@@ -77,7 +75,7 @@ layout(location = 0) uniform usampler2D tex;
 void main()
 {
 	vec4 c = texture(tex, ourTexCoord);
-	color = c / 255.0;
+	color = c / 6556;
 }
 )";
 
@@ -95,6 +93,27 @@ const GLuint indices[] = {  // Note that we start from 0!
 	1, 2, 3   // Second Triangle
 };
 
+template <typename T>
+struct CudaMemWrapper
+{
+	T* devPtr; // = nullptr;
+	CudaMemWrapper(size_t numEls)
+	{
+		checkCudaErrors(cudaMalloc(&devPtr, numEls * sizeof(T)));
+	}
+
+	~CudaMemWrapper()
+	{
+		checkCudaErrors(cudaFree(devPtr));
+	}
+
+	operator T* () const { return devPtr; }
+};
+
+CudaMemWrapper<curandState>* randStates;
+
+void RunRandInit(curandState* state, size_t len, uint64_t seed);
+void RunBuddhabrot(uint32_t* dst, int imageW, int imageH, double xOff, double yOff, double scale, int numSMs, curandState* randStates);
 
 // Create 2D OpenGL texture in gl_tex and bind it to CUDA in cuda_tex
 static void createGLTextureForCUDA(GLuint* gl_tex, cudaGraphicsResource** cuda_tex, unsigned int size_x, unsigned int size_y)
@@ -245,6 +264,10 @@ static void initCUDABuffers()
 	size_tex_data = sizeof(GLuint) * num_values;
 	// We don't want to use cudaMallocManaged here - since we definitely want
 	checkCudaErrors(cudaMalloc(&cuda_dev_render_buffer, size_tex_data)); // Allocate CUDA memory for color output
+	cudaMemset(cuda_dev_render_buffer, 0, size_tex_data);
+	const size_t size = 160 * 256;
+	randStates = new CudaMemWrapper<curandState>(size);
+	RunRandInit(*randStates, size, 1234);
 }
 
 static bool initGLFW()
@@ -266,11 +289,17 @@ static bool initGLFW()
 
 static void generateCUDAImage()
 {
-	// calculate grid size
-	dim3 block(16, 16, 1);
-	dim3 grid(WIDTH / block.x, HEIGHT / block.y, 1); // 2D grid, every thread will compute a pixel
-	launch_cudaRender(grid, block, 0, (unsigned int *) cuda_dev_render_buffer, WIDTH); // launch with 0 additional shared memory allocated
+	float scale = 3.2f;
+	float xs = 0.503906250;
+	float ys = 0.503906250;
+	float xOff = -0.5;
+	float yOff = 0;
+	double s = scale / (float)WIDTH;
+	double x = (xs - (double)WIDTH * 0.5f) * s + xOff;
+	double y = (ys - (double)HEIGHT * 0.5f) * s + yOff;
 
+	RunBuddhabrot((uint32_t*)cuda_dev_render_buffer, WIDTH, HEIGHT, x, y,
+		s, 10, *randStates);
 	// We want to copy cuda_dev_render_buffer data to the texture
 	// Map buffer objects to get CUDA device pointers
 	cudaArray* texture_ptr;

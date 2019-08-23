@@ -317,6 +317,7 @@ static bool initGLFW()
 	glfwMakeContextCurrent(g_window);
 	glfwSwapInterval(1);
 	glfwSetKeyCallback(g_window, keyboardfunc);
+	glfwSetScrollCallback(g_window, scrollfunc);
 	return true;
 }
 

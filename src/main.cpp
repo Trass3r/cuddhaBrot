@@ -40,6 +40,9 @@ size_t size_tex_data;
 unsigned int num_texels;
 unsigned int num_values;
 
+static float zoom = 1;
+static float xpos = 0, ypos = 0;
+
 #define FULLSCREENTRIANGLE 1
 #if FULLSCREENTRIANGLE
 const char* const glsl_drawtex_vertshader_src = R"(
@@ -55,11 +58,23 @@ layout (location = 1) in vec2 texCoord;
 )"
 #endif
 R"(
+layout(location = 1) uniform float zoom = 1;
+layout(location = 2) uniform float x = 0;
+layout(location = 3) uniform float y = 0;
+
 layout(location = 0) out vec2 ourTexCoord;
+
+vec2 rotate(vec2 v, float a)
+{
+	float s = sin(a);
+	float c = cos(a);
+	mat2 m = mat2(c, s, -s, c);
+	return m * v * zoom + vec2(x, y);
+}
 
 void main()
 {
-	gl_Position = vec4(position, 1.0f);
+	gl_Position = vec4(rotate(position.xy, -90 / 180.0 * 3.14159), 0, 1.0f);
 	ourTexCoord = texCoord;
 }
 )";
@@ -149,10 +164,28 @@ static void keyboardfunc(GLFWwindow* window, int key, int scancode, int action, 
 {
 	switch (key)
 	{
+	case GLFW_KEY_LEFT:
+		xpos += 0.1f;
+		break;
+	case GLFW_KEY_RIGHT:
+		xpos -= 0.1f;
+		break;
+	case GLFW_KEY_UP:
+		ypos -= 0.1f;
+		break;
+	case GLFW_KEY_DOWN:
+		ypos += 0.1f;
+		break;
 	case GLFW_KEY_ESCAPE:
 		glfwSetWindowShouldClose(window, GL_TRUE);
 		break;
 	}
+}
+
+static void scrollfunc(GLFWwindow* window, double xoffset, double yoffset)
+{
+//	if (zoom >= 1.0f && zoom <= 45.0f)
+		zoom += (float)yoffset;
 }
 
 static void APIENTRY glCallback(GLenum source, GLenum type, GLuint id, GLenum severity,
@@ -322,6 +355,9 @@ static void display()
 	glBindTexture(GL_TEXTURE_2D, opengl_tex_cuda);
 
 	shdrawtex.use();
+	glUniform1f(1, zoom);
+	glUniform1f(2, xpos);
+	glUniform1f(3, ypos);
 
 	glBindVertexArray(VAO); // binding VAO automatically binds EBO
 #if FULLSCREENTRIANGLE

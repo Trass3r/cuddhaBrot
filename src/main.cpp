@@ -1,19 +1,14 @@
-// Implementation of CUDA simpleCUDA2GL sample - based on Cuda Samples 9.0
-// Dependencies: GLFW, GLEW
-
 #ifndef GLEW_STATIC
 	#define GLEW_STATIC
 #endif
-
-// OpenGL
 #include <GL/glew.h> // Take care: GLEW should be included before GLFW
 #include <GLFW/glfw3.h>
-// CUDA
+
 #include <cuda_runtime.h>
 #include <cuda_gl_interop.h>
 #include "libs/helper_cuda.h"
 #include "libs/helper_cuda_gl.h"
-// C++ libs
+
 #include <string>
 #include <filesystem>
 #include "shader_tools/GLSLProgram.h"
@@ -132,6 +127,12 @@ static void initGLBuffers()
 // Keyboard
 static void keyboardfunc(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
+	switch (key)
+	{
+	case GLFW_KEY_ESCAPE:
+		glfwSetWindowShouldClose(window, GL_TRUE);
+		break;
+	}
 }
 
 static void APIENTRY glCallback(GLenum source, GLenum type, GLuint id, GLenum severity,
@@ -354,7 +355,7 @@ int main(int argc, char* argv[])
 	while (!glfwWindowShouldClose(g_window))
 	{
 		display();
-		glfwWaitEvents();
+		glfwPollEvents();
 	}
 
 	glfwDestroyWindow(g_window);

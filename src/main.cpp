@@ -100,8 +100,9 @@ const GLuint indices[] = {  // Note that we start from 0!
 static void createGLTextureForCUDA(GLuint* gl_tex, cudaGraphicsResource** cuda_tex, unsigned int size_x, unsigned int size_y)
 {
 	// create an OpenGL texture
-	glGenTextures(1, gl_tex); // generate 1 texture
-	glBindTexture(GL_TEXTURE_2D, *gl_tex); // set it as current target
+	glGenTextures(1, gl_tex);
+	glBindTexture(GL_TEXTURE_2D, *gl_tex);
+	glObjectLabel(GL_TEXTURE, *gl_tex, sizeof("output"), "output");
 	// set basic texture parameters
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); // clamp s coordinate
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE); // clamp t coordinate

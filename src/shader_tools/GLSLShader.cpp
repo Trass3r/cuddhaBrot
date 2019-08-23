@@ -27,6 +27,7 @@ void GLSLShader::compile()
 {
 	printf("(S) Compiling shader \"%s\" ... ", this->shader_name.c_str());
 	shader = glCreateShader(shadertype);
+	glObjectLabel(GL_SHADER, shader, (GLsizei)shader_name.size(), shader_name.c_str());
 	glShaderSource(shader, 1, ShaderStringHelper(shader_src), NULL);
 	glCompileShader(shader);
 	// check if shader compiled

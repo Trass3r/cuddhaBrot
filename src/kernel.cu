@@ -114,6 +114,19 @@ void RunRandInit(curandState* state, size_t len, uint64_t seed)
 	getLastCudaError("randInit kernel execution failed.\n");
 }
 
+__global__ void computeMinMax(uint32_t* data, size_t size)
+{
+	int tid = blockIdx.x * blockDim.x + threadIdx.x;
+	uint32_t minimum = ~0u, maximum = 0;
+	for (; tid < size; tid += gridDim.x * blockDim.x)
+	{
+		minimum = min(minimum, data[tid]);
+		maximum = max(maximum, data[tid]);
+	}
+	atomicMin(&data[0], minimum);
+	atomicMax(&data[1], maximum);
+}
+
 void RunBuddhabrot(uint32_t* dst, int imageW, int imageH, double xOff, double yOff, double scale, int numSMs, curandState* randStates)
 {
 	uint32_t maxIter = 8192*2;
@@ -121,4 +134,7 @@ void RunBuddhabrot(uint32_t* dst, int imageW, int imageH, double xOff, double yO
 		(float)scale, randStates);
 
 	getLastCudaError("Buddhabrot kernel execution failed.\n");
+
+	computeMinMax <<<16 * numSMs, 1024>>> (dst, imageW * imageH);
+	getLastCudaError("minmax kernel execution failed.\n");
 }

@@ -59,6 +59,7 @@ __device__ inline uint32_t CalcMandelbrot(T xPos, T yPos, uint32_t maxIter)
 
 template<typename T, unsigned numChannels = 4>
 __global__ void
+__launch_bounds__(1024) // reduce # used registers
 Buddhabrot(uint32_t* dst, int imageW, int imageH, uint32_t maxIter,
 	T xOff, T yOff, T scale, curandState* randStates)
 {
@@ -75,7 +76,7 @@ Buddhabrot(uint32_t* dst, int imageW, int imageH, uint32_t maxIter,
 		if (inMainCardioid(xPos, yPos) || inOrder2Bulb(xPos, yPos))
 			continue;
 
-		int m = CalcMandelbrot<T>(xPos, yPos, maxIter);
+		uint32_t m = CalcMandelbrot<T>(xPos, yPos, maxIter);
 		//m = blockIdx.x;         // uncomment to see scheduling order
 
 		// we converged, skip that
